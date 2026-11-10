@@ -17,7 +17,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
+      run: |
   gh release download game-files --pattern "*.zip" --dir game
   7z x game\*.zip -ogame\x "-xr!SFPA.app" -y | Out-Null
       - name: Build and sign MSIX
