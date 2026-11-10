@@ -18,7 +18,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download game-files --pattern "Super_Fancy_Pants_Adventure_1.zip" --dir game
+          gh release download game-files --pattern "*.zip" "Super_Fancy_Pants_Adventure_1.zip" --dir game
           7z x game\Super_Fancy_Pants_Adventure_1.zip -ogame\x "-xr!SFPA.app" -y | Out-Null
 
       - name: Build and sign MSIX
