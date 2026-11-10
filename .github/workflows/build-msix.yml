@@ -19,6 +19,26 @@ jobs:
           gh release download game-files --pattern "*.zip" --dir game
           7z x game\*.zip -ogame\x "-xr!SFPA.app" -y | Out-Null
 
+      - name: Make logo assets
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          New-Item Assets -ItemType Directory -Force | Out-Null
+          $src = [System.Drawing.Image]::FromFile("$PWD\game\x\Super Fancy Pants Adventure\icons\Icon-128.png")
+          function Save-Logo($name, $w, $h, $s) {
+            $bmp = New-Object System.Drawing.Bitmap $w, $h
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.InterpolationMode = 'HighQualityBicubic'
+            $g.DrawImage($src, [int](($w-$s)/2), [int](($h-$s)/2), $s, $s)
+            $g.Dispose()
+            $bmp.Save("$PWD\Assets\$name", [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+          }
+          Save-Logo "StoreLogo.png" 50 50 50
+          Save-Logo "Square44x44Logo.png" 44 44 44
+          Save-Logo "Square150x150Logo.png" 150 150 150
+          Save-Logo "Wide310x150Logo.png" 310 150 130
+
       - name: Build and sign MSIX
         shell: pwsh
         run: ./Build-SFPA-Msix.ps1 -GameDir "$PWD\game\x\Super Fancy Pants Adventure"
