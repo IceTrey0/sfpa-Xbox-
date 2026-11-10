@@ -11,15 +11,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The game zip lives as an asset on a PRIVATE release named "game-files".
-      # (Too big for normal git; keep this repo private, the game isn't yours to redistribute.)
       - name: Download and unpack game
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-      run: |
-  gh release download game-files --pattern "*.zip" --dir game
-  7z x game\*.zip -ogame\x "-xr!SFPA.app" -y | Out-Null
+        run: |
+          gh release download game-files --pattern "*.zip" --dir game
+          7z x game\*.zip -ogame\x "-xr!SFPA.app" -y | Out-Null
+
       - name: Build and sign MSIX
         shell: pwsh
         run: ./Build-SFPA-Msix.ps1 -GameDir "$PWD\game\x\Super Fancy Pants Adventure"
