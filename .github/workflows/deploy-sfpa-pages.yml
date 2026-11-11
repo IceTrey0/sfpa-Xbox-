@@ -99,12 +99,30 @@ jobs:
                 height: 100%;
                 overflow: hidden;
                 background: #111;
+                color: white;
+                font-family: Arial, sans-serif;
               }
+
+              #status {
+                position: fixed;
+                z-index: 10;
+                top: 0;
+                left: 0;
+                right: 0;
+                padding: 12px;
+                background: #222;
+                color: #fff;
+                font-size: 16px;
+                white-space: pre-wrap;
+              }
+
               ruffle-player {
+                display: block;
                 width: 100%;
                 height: 100%;
               }
             </style>
+
             <script>
               window.RufflePlayer = window.RufflePlayer || {};
               window.RufflePlayer.config = {
@@ -112,15 +130,75 @@ jobs:
                 unmuteOverlay: "hidden"
               };
             </script>
+
             <script src="ruffle/ruffle.js"></script>
           </head>
+
           <body>
+            <div id="status">Page loaded. Checking Ruffle...</div>
+
             <script>
-              window.addEventListener("load", function() {
-                const ruffle = window.RufflePlayer.newest();
-                const player = ruffle.createPlayer();
-                document.body.appendChild(player);
-                player.load("SFPA.swf");
+              const statusBox = document.getElementById("status");
+
+              function showStatus(message) {
+                statusBox.textContent = message;
+              }
+
+              window.addEventListener("error", function(event) {
+                showStatus(
+                  "JavaScript error:\n" +
+                  (event.message || "Unknown error") +
+                  "\nFile: " + (event.filename || "unknown") +
+                  "\nLine: " + (event.lineno || "unknown")
+                );
+              });
+
+              window.addEventListener("unhandledrejection", function(event) {
+                showStatus(
+                  "Loading error:\n" +
+                  String(event.reason || "Unknown rejection")
+                );
+              });
+
+              window.addEventListener("load", async function() {
+                try {
+                  showStatus("Checking Ruffle...");
+
+                  if (!window.RufflePlayer) {
+                    throw new Error("Ruffle script did not load.");
+                  }
+
+                  const ruffle = window.RufflePlayer.newest();
+
+                  if (!ruffle) {
+                    throw new Error("Ruffle player is unavailable.");
+                  }
+
+                  showStatus("Creating game player...");
+
+                  const player = ruffle.createPlayer();
+
+                  player.style.width = "100%";
+                  player.style.height = "100%";
+
+                  document.body.appendChild(player);
+
+                  showStatus("Loading Super Fancy Pants Adventure...");
+
+                  await player.ruffle().load("SFPA.swf");
+
+                  showStatus("Game loaded. Starting...");
+                  
+                  setTimeout(function() {
+                    statusBox.style.display = "none";
+                  }, 3000);
+
+                } catch (error) {
+                  showStatus(
+                    "GAME FAILED TO LOAD\n\n" +
+                    (error.stack || error.message || String(error))
+                  );
+                }
               });
             </script>
           </body>
