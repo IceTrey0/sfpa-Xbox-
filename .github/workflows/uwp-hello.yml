@@ -1,0 +1,106 @@
+name: UWP hello test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  hello:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: krdlab/setup-haxe@v1
+        with:
+          haxe-version: 4.3.6
+
+      - name: Install libraries
+        shell: pwsh
+        run: |
+          haxelib install lime --quiet
+          haxelib install openfl --quiet
+          haxelib install starling --quiet
+          haxelib install hxcpp --quiet
+          haxelib list
+
+      - name: Write the test project
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force hello\Source | Out-Null
+          @'
+          <?xml version="1.0" encoding="utf-8"?>
+          <project>
+            <meta title="StarlingHello" package="com.example.starlinghello" version="1.0.0" company="dev" />
+            <app main="Main" path="Export" file="StarlingHello" />
+            <window width="1920" height="1080" fps="60" background="#202040" hardware="true" />
+            <source path="Source" />
+            <haxelib name="openfl" />
+            <haxelib name="starling" />
+          </project>
+          '@ | Set-Content hello\project.xml -Encoding utf8
+          @'
+          import openfl.display.Sprite;
+          import starling.core.Starling;
+          import starling.display.Quad;
+          import starling.events.Event;
+
+          class Main extends Sprite
+          {
+            public function new()
+            {
+              super();
+              var s = new Starling(Game, stage);
+              s.start();
+            }
+          }
+
+          class Game extends starling.display.Sprite
+          {
+            public function new()
+            {
+              super();
+              addEventListener(Event.ADDED_TO_STAGE, onAdded);
+            }
+
+            function onAdded(e:Event):Void
+            {
+              var q = new Quad(300, 300, 0xFF8800);
+              q.pivotX = 150;
+              q.pivotY = 150;
+              q.x = 960;
+              q.y = 540;
+              addChild(q);
+              addEventListener(Event.ENTER_FRAME, function(e:Event) { q.rotation += 0.05; });
+            }
+          }
+          '@ | Set-Content hello\Source\Main.hx -Encoding utf8
+
+      - name: Rebuild Lime native for WinRT
+        shell: pwsh
+        working-directory: hello
+        run: |
+          haxelib run lime setup -y
+          haxelib run lime rebuild winrt -64 -release -verbose
+
+      - name: Build UWP package
+        shell: pwsh
+        working-directory: hello
+        run: haxelib run openfl build project.xml winrt -64 -release -appx -verbose
+
+      - name: List outputs
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path hello\Export) {
+            Get-ChildItem hello\Export -Recurse -Include *.appx,*.msix,*.cer,*.pfx,*.exe | ForEach-Object { $_.FullName }
+          } else { Write-Host "No Export folder" }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uwp-hello
+          path: |
+            hello/Export/**/*.appx
+            hello/Export/**/*.msix
+            hello/Export/**/*.cer
+            hello/Export/**/*.pfx
+          if-no-files-found: warn
+          retention-days: 3
