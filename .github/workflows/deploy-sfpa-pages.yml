@@ -1,0 +1,137 @@
+
+name: Deploy SFPA Ruffle Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Download game archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p game site/ruffle
+
+          gh release download game-files \
+            --pattern "*.zip" \
+            --dir game \
+            --repo "$GITHUB_REPOSITORY"
+
+          ARCHIVE=$(find game -name "*.zip" -type f | head -n 1)
+
+          if [ -z "$ARCHIVE" ]; then
+            echo "Game archive not found"
+            exit 1
+          fi
+
+          unzip -q "$ARCHIVE" -d game/unpacked
+
+          SWF=$(find game/unpacked -type f -iname "SFPA.swf" \
+            -printf '%s %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)
+
+          if [ -z "$SWF" ]; then
+            echo "SFPA.swf not found"
+            exit 1
+          fi
+
+          cp "$SWF" site/SFPA.swf
+
+      - name: Download Ruffle
+        run: |
+          curl -L \
+            "https://github.com/ruffle-rs/ruffle/releases/download/v0.7.1/ruffle-0.7.1-web-selfhosted.zip" \
+            -o ruffle.zip
+
+          mkdir ruffle-unpacked
+          unzip -q ruffle.zip -d ruffle-unpacked
+
+          ENTRY=$(find ruffle-unpacked -name ruffle.js -type f | head -n 1)
+
+          if [ -z "$ENTRY" ]; then
+            echo "ruffle.js not found"
+            exit 1
+          fi
+
+          cp -a "$(dirname "$ENTRY")/." site/ruffle/
+
+          WASM=$(find site/ruffle -name "*.wasm" -type f | head -n 1)
+
+          if [ -z "$WASM" ]; then
+            echo "Ruffle WASM not found"
+            exit 1
+          fi
+
+      - name: Create game webpage
+        run: |
+          cat > site/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Super Fancy Pants Adventure</title>
+            <style>
+              html, body {
+                margin: 0;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                background: #111;
+              }
+              ruffle-player {
+                width: 100%;
+                height: 100%;
+              }
+            </style>
+            <script>
+              window.RufflePlayer = window.RufflePlayer || {};
+              window.RufflePlayer.config = {
+                autoplay: "on",
+                unmuteOverlay: "hidden"
+              };
+            </script>
+            <script src="ruffle/ruffle.js"></script>
+          </head>
+          <body>
+            <script>
+              window.addEventListener("load", function() {
+                const ruffle = window.RufflePlayer.newest();
+                const player = ruffle.createPlayer();
+                document.body.appendChild(player);
+                player.load("SFPA.swf");
+              });
+            </script>
+          </body>
+          </html>
+          EOF
+
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Publish website
+        id: deployment
+        uses: actions/deploy-pages@v4
