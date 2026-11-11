@@ -1,0 +1,56 @@
+name: Prepare SFPA Ruffle test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  prepare:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download and unpack the game release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force game, game\x, site, site\ruffle, ruffle-unpacked, out | Out-Null
+          gh release download game-files --pattern "*.zip" --dir game --repo $env:GITHUB_REPOSITORY
+          $archive = Get-ChildItem game -File -Filter *.zip | Select-Object -First 1
+          if (-not $archive) { throw "No ZIP asset was found on the game-files release." }
+          7z x $archive.FullName "-ogame\x" -y | Out-Null
+          $swf = Get-ChildItem game\x -Recurse -File -Filter SFPA.swf | Sort-Object Length -Descending | Select-Object -First 1
+          if (-not $swf) { throw "SFPA.swf was not found in the downloaded game archive." }
+          Copy-Item $swf.FullName site\SFPA.swf -Force
+          Write-Host "Found SFPA.swf ($([math]::Round($swf.Length / 1MB, 1)) MB)."
+
+      - name: Download the official Ruffle web package
+        shell: pwsh
+        run: |
+          $url = "https://github.com/ruffle-rs/ruffle/releases/download/v0.7.1/ruffle-0.7.1-web-selfhosted.zip"
+          Invoke-WebRequest -Uri $url -OutFile ruffle-web.zip
+          Expand-Archive -Path ruffle-web.zip -DestinationPath ruffle-unpacked -Force
+          $entry = Get-ChildItem ruffle-unpacked -Recurse -File -Filter ruffle.js | Select-Object -First 1
+          if (-not $entry) { throw "The Ruffle package did not contain ruffle.js." }
+          Copy-Item (Join-Path $entry.Directory.FullName "*") site\ruffle -Recurse -Force
+          if (-not (Test-Path site\ruffle\ruffle.wasm)) {
+            $wasm = Get-ChildItem ruffle-unpacked -Recurse -File -Filter ruffle.wasm | Select-Object -First 1
+            if (-not $wasm) { throw "The Ruffle package did not contain ruffle.wasm." }
+            Copy-Item $wasm.FullName site\ruffle\ruffle.wasm -Force
+          }
+
+      - name: Assemble the browser test site
+        shell: pwsh
+        run: |
+          Copy-Item RuffleTest\index.html site\index.html -Force
+          Compress-Archive -Path site\* -DestinationPath out\sfpa-ruffle-test.zip -Force
+          Write-Host "Created out\sfpa-ruffle-test.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sfpa-ruffle-test
+          path: out/sfpa-ruffle-test.zip
+          if-no-files-found: error
+          retention-days: 7
