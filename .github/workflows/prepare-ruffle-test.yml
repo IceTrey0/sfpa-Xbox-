@@ -38,21 +38,59 @@ jobs:
           $entry = Get-ChildItem ruffle-unpacked -Recurse -File -Filter ruffle.js | Select-Object -First 1
           if (-not $entry) { throw "The Ruffle package did not contain ruffle.js." }
 
-          $ruffleFolder = $entry.Directory.FullName
-          Copy-Item (Join-Path $ruffleFolder "*") site\ruffle -Recurse -Force
+          Copy-Item (Join-Path $entry.Directory.FullName "*") site\ruffle -Recurse -Force
 
           $wasm = Get-ChildItem site\ruffle -Recurse -File -Filter "*.wasm" | Select-Object -First 1
           if (-not $wasm) { throw "The Ruffle package did not contain a WASM file." }
 
-          Write-Host "Found Ruffle WASM: $($wasm.Name)"
-          Write-Host "Ruffle files copied successfully."
+          Write-Host "Ruffle WASM found: $($wasm.Name)"
 
       - name: Assemble the browser test site
         shell: pwsh
         run: |
-          Copy-Item RuffleTest\index.html site\index.html -Force
+          $html = @'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Super Fancy Pants Adventure</title>
+            <style>
+              html, body {
+                margin: 0;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                background: #111;
+              }
+              embed {
+                width: 100%;
+                height: 100%;
+              }
+            </style>
+            <script>
+              window.RufflePlayer = window.RufflePlayer || {};
+              window.RufflePlayer.config = {
+                autoplay: "on",
+                unmuteOverlay: "hidden"
+              };
+            </script>
+            <script src="ruffle/ruffle.js"></script>
+          </head>
+          <body>
+            <embed src="SFPA.swf" width="100%" height="100%">
+          </body>
+          </html>
+          '@
+
+          Set-Content -Path site\index.html -Value $html -Encoding UTF8
+
+          if (-not (Test-Path site\index.html)) {
+            throw "Could not create the browser test page."
+          }
+
           Compress-Archive -Path site\* -DestinationPath out\sfpa-ruffle-test.zip -Force
-          Write-Host "Created out\sfpa-ruffle-test.zip"
+          Write-Host "Browser test bundle created successfully."
 
       - uses: actions/upload-artifact@v4
         with:
