@@ -1,3 +1,4 @@
+
 name: Prepare SFPA Ruffle test
 
 on:
@@ -8,6 +9,7 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: read
+
     steps:
       - uses: actions/checkout@v4
 
@@ -18,7 +20,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force game, game\x, site, site\ruffle, ruffle-unpacked, out | Out-Null
           gh release download game-files --pattern "*.zip" --dir game --repo $env:GITHUB_REPOSITORY
-          $archive = Get-ChildItem game -File -Filter *.zip | Select-Object -First 1
+          $archive = Get-ChildItem game -File -Filter "*.zip" | Select-Object -First 1
           if (-not $archive) { throw "No ZIP asset was found on the game-files release." }
           7z x $archive.FullName "-ogame\x" -y | Out-Null
           $swf = Get-ChildItem game\x -Recurse -File -Filter SFPA.swf | Sort-Object Length -Descending | Select-Object -First 1
@@ -32,14 +34,18 @@ jobs:
           $url = "https://github.com/ruffle-rs/ruffle/releases/download/v0.7.1/ruffle-0.7.1-web-selfhosted.zip"
           Invoke-WebRequest -Uri $url -OutFile ruffle-web.zip
           Expand-Archive -Path ruffle-web.zip -DestinationPath ruffle-unpacked -Force
+
           $entry = Get-ChildItem ruffle-unpacked -Recurse -File -Filter ruffle.js | Select-Object -First 1
           if (-not $entry) { throw "The Ruffle package did not contain ruffle.js." }
-          Copy-Item (Join-Path $entry.Directory.FullName "*") site\ruffle -Recurse -Force
-          if (-not (Test-Path site\ruffle\ruffle.wasm)) {
-            $wasm = Get-ChildItem ruffle-unpacked -Recurse -File -Filter ruffle.wasm | Select-Object -First 1
-            if (-not $wasm) { throw "The Ruffle package did not contain ruffle.wasm." }
-            Copy-Item $wasm.FullName site\ruffle\ruffle.wasm -Force
-          }
+
+          $ruffleFolder = $entry.Directory.FullName
+          Copy-Item (Join-Path $ruffleFolder "*") site\ruffle -Recurse -Force
+
+          $wasm = Get-ChildItem site\ruffle -Recurse -File -Filter "*.wasm" | Select-Object -First 1
+          if (-not $wasm) { throw "The Ruffle package did not contain a WASM file." }
+
+          Write-Host "Found Ruffle WASM: $($wasm.Name)"
+          Write-Host "Ruffle files copied successfully."
 
       - name: Assemble the browser test site
         shell: pwsh
