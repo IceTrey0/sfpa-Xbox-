@@ -91,7 +91,7 @@ jobs:
           <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>SFPA Ruffle Diagnostics</title>
+            <title>SFPA AIR Runtime Test</title>
 
             <style>
               html, body {
@@ -120,7 +120,7 @@ jobs:
                 overflow: auto;
                 padding: 12px;
                 background: rgba(0, 0, 0, 0.92);
-                color: #fff;
+                color: white;
                 font-size: 13px;
                 white-space: pre-wrap;
                 overflow-wrap: anywhere;
@@ -144,7 +144,8 @@ jobs:
               window.RufflePlayer.config = {
                 autoplay: "on",
                 unmuteOverlay: "hidden",
-                logLevel: "debug"
+                logLevel: "debug",
+                playerRuntime: "air"
               };
             </script>
 
@@ -218,7 +219,7 @@ jobs:
                     throw new Error("Ruffle player is unavailable.");
                   }
 
-                  report("Creating player...");
+                  report("Creating AIR runtime player...");
 
                   const player = ruffle.createPlayer();
 
@@ -260,6 +261,7 @@ jobs:
                     report("SWF data loaded.");
                   });
 
+                  report("Runtime selected: Adobe AIR");
                   report("Loading SFPA.swf...");
 
                   await player.ruffle().load("SFPA.swf");
@@ -271,9 +273,8 @@ jobs:
                     player.readyState
                   );
 
-                  report(
-                    "If the game is still white, leave this panel open."
-                  );
+                  report("AIR runtime test is running.");
+                  report("Diagnostic panel will remain visible.");
 
                 } catch (error) {
                   report(
