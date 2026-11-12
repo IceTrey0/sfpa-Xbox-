@@ -1,88 +1,4 @@
 
-name: Deploy SFPA Ruffle Test
-
-on:
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: github-pages
-  cancel-in-progress: true
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Download game archive
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p game site/ruffle
-
-          gh release download game-files \
-            --pattern "*.zip" \
-            --dir game \
-            --repo "$GITHUB_REPOSITORY"
-
-          ARCHIVE=$(find game -name "*.zip" -type f | head -n 1)
-
-          if [ -z "$ARCHIVE" ]; then
-            echo "Game archive not found"
-            exit 1
-          fi
-
-          unzip -q "$ARCHIVE" -d game/unpacked
-
-          SWF=$(find game/unpacked -type f -iname "SFPA.swf" \
-            -printf '%s %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)
-
-          if [ -z "$SWF" ]; then
-            echo "SFPA.swf not found"
-            exit 1
-          fi
-
-          cp "$SWF" site/SFPA.swf
-
-      - name: Download Ruffle
-        run: |
-          curl -L \
-            "https://github.com/ruffle-rs/ruffle/releases/download/v0.7.1/ruffle-0.7.1-web-selfhosted.zip" \
-            -o ruffle.zip
-
-          mkdir ruffle-unpacked
-          unzip -q ruffle.zip -d ruffle-unpacked
-
-          ENTRY=$(find ruffle-unpacked -name ruffle.js -type f | head -n 1)
-
-          if [ -z "$ENTRY" ]; then
-            echo "ruffle.js not found"
-            exit 1
-          fi
-
-          cp -a "$(dirname "$ENTRY")/." site/ruffle/
-
-          WASM=$(find site/ruffle -name "*.wasm" -type f | head -n 1)
-
-          if [ -z "$WASM" ]; then
-            echo "Ruffle WASM not found"
-            exit 1
-          fi
-
       - name: Create game webpage
         run: |
           cat > site/index.html <<'EOF'
@@ -91,7 +7,7 @@ jobs:
           <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>SFPA AIR Runtime Test</title>
+            <title>SFPA Ruffle Canvas Test</title>
 
             <style>
               html, body {
@@ -120,7 +36,7 @@ jobs:
                 overflow: auto;
                 padding: 12px;
                 background: rgba(0, 0, 0, 0.92);
-                color: white;
+                color: #fff;
                 font-size: 13px;
                 white-space: pre-wrap;
                 overflow-wrap: anywhere;
@@ -144,8 +60,9 @@ jobs:
               window.RufflePlayer.config = {
                 autoplay: "on",
                 unmuteOverlay: "hidden",
-                logLevel: "debug",
-                playerRuntime: "air"
+                logLevel: "trace",
+                playerRuntime: "air",
+                preferredRenderer: "canvas"
               };
             </script>
 
@@ -219,7 +136,7 @@ jobs:
                     throw new Error("Ruffle player is unavailable.");
                   }
 
-                  report("Creating AIR runtime player...");
+                  report("Creating AIR + Canvas player...");
 
                   const player = ruffle.createPlayer();
 
@@ -234,34 +151,35 @@ jobs:
                     try {
                       const metadata = player.ruffle().metadata;
 
-                      if (metadata) {
-                        report(
-                          "ActionScript 3: " +
-                          metadata.isActionScript3
-                        );
+                      report(
+                        "ActionScript 3: " +
+                        metadata.isActionScript3
+                      );
 
-                        report(
-                          "SWF frame rate: " +
-                          metadata.frameRate
-                        );
+                      report(
+                        "SWF frame rate: " +
+                        metadata.frameRate
+                      );
 
-                        report(
-                          "SWF dimensions: " +
-                          metadata.width +
-                          " x " +
-                          metadata.height
-                        );
-                      }
+                      report(
+                        "SWF dimensions: " +
+                        metadata.width +
+                        " x " +
+                        metadata.height
+                      );
+
                     } catch (error) {
                       report("Metadata read error: " + error);
                     }
                   });
 
                   player.addEventListener("loadeddata", function() {
-                    report("SWF data loaded.");
+                    report("SWF fully loaded.");
                   });
 
-                  report("Runtime selected: Adobe AIR");
+                  report("Runtime: Adobe AIR");
+                  report("Renderer requested: Canvas");
+                  report("Log level: Trace");
                   report("Loading SFPA.swf...");
 
                   await player.ruffle().load("SFPA.swf");
@@ -273,7 +191,7 @@ jobs:
                     player.readyState
                   );
 
-                  report("AIR runtime test is running.");
+                  report("AIR + Canvas test is running.");
                   report("Diagnostic panel will remain visible.");
 
                 } catch (error) {
@@ -287,12 +205,3 @@ jobs:
           </body>
           </html>
           EOF
-
-      - name: Upload website
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
-      - name: Publish website
-        id: deployment
-        uses: actions/deploy-pages@v4
